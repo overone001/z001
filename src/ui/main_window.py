@@ -155,40 +155,63 @@ class MainWindow(QMainWindow):
         """添加资料对话框"""
         dialog = QDialog(self)
         dialog.setWindowTitle("新增资料")
-        dialog.setGeometry(200, 200, 500, 400)
+        dialog.setGeometry(200, 200, 600, 500)
+        dialog.setMinimumWidth(600)
+        dialog.setMinimumHeight(450)
         
-        layout = QFormLayout()
+        main_layout = QVBoxLayout()
         
         # 标题
+        title_label = QLabel("标题：")
         title_input = QLineEdit()
-        layout.addRow("标题：", title_input)
+        title_input.setPlaceholderText("请输入资料标题")
         
         # 分类
+        category_label = QLabel("分类：")
         category_combo = QComboBox()
         categories = self.db.get_categories()
         for category in categories:
             category_combo.addItem(category['name'], category['id'])
-        layout.addRow("分类：", category_combo)
         
         # 内容
+        content_label = QLabel("内容：")
         content_input = QTextEdit()
+        content_input.setPlaceholderText("请输入资料内容")
         content_input.setMinimumHeight(150)
-        layout.addRow("内容：", content_input)
         
         # 备注
+        notes_label = QLabel("备注：")
         notes_input = QTextEdit()
+        notes_input.setPlaceholderText("可选的备注信息")
         notes_input.setMinimumHeight(80)
-        layout.addRow("备注：", notes_input)
         
-        # 保存按钮
+        # 添加标签和输入框到布局
+        main_layout.addWidget(title_label)
+        main_layout.addWidget(title_input)
+        
+        main_layout.addWidget(category_label)
+        main_layout.addWidget(category_combo)
+        
+        main_layout.addWidget(content_label)
+        main_layout.addWidget(content_input)
+        
+        main_layout.addWidget(notes_label)
+        main_layout.addWidget(notes_input)
+        
+        # 按钮布局
+        btn_layout = QHBoxLayout()
         save_btn = QPushButton("保存")
         cancel_btn = QPushButton("取消")
+        save_btn.setFixedWidth(100)
+        cancel_btn.setFixedWidth(100)
         
-        btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         btn_layout.addWidget(save_btn)
         btn_layout.addWidget(cancel_btn)
-        layout.addRow(btn_layout)
+        
+        main_layout.addLayout(btn_layout)
+        
+        dialog.setLayout(main_layout)
         
         def save_material():
             title = title_input.text().strip()
