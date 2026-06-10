@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-主窗口UI - 完全简化版本
+主窗口UI - 表单集成到主窗口
 """
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QLineEdit, QComboBox, QLabel,
-    QMessageBox
+    QTextEdit, QMessageBox, QFrame
 )
 from PyQt5.QtCore import Qt
 import config
@@ -17,6 +17,7 @@ class MainWindow(QMainWindow):
     def __init__(self, db: Database):
         super().__init__()
         self.db = db
+        self.form_visible = False
         self.init_ui()
     
     def init_ui(self):
@@ -30,6 +31,7 @@ class MainWindow(QMainWindow):
         
         # 主布局
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(5, 5, 5, 5)
         
         # 顶部工具栏
         toolbar_layout = QHBoxLayout()
@@ -50,7 +52,7 @@ class MainWindow(QMainWindow):
         # 新增按钮
         self.add_btn = QPushButton("新增")
         self.add_btn.setFixedWidth(80)
-        self.add_btn.clicked.connect(self.show_add_form)
+        self.add_btn.clicked.connect(self.toggle_form)
         
         # 删除按钮
         self.delete_btn = QPushButton("删除")
@@ -73,19 +75,104 @@ class MainWindow(QMainWindow):
         
         main_layout.addLayout(toolbar_layout)
         
+        # 创建表单面板（初始隐藏）
+        self.form_frame = QFrame()
+        self.form_frame.setStyleSheet("QFrame { border: 1px solid #ccc; padding: 10px; }")
+        form_layout = QVBoxLayout(self.form_frame)
+        
+        # 标题
+        form_layout.addWidget(QLabel("标题:"))
+        self.form_title = QLineEdit()
+        self.form_title.setPlaceholderText("请输入标题")
+        form_layout.addWidget(self.form_title)
+        
+        # 分类
+        form_layout.addWidget(QLabel("分类:"))
+        self.form_category = QComboBox()
+        categories = self.db.get_categories()
+        for cat in categories:
+            self.form_category.addItem(cat['name'], cat['id'])
+        form_layout.addWidget(self.form_category)
+        
+        # 内容
+        form_layout.addWidget(QLabel("内容:"))
+        self.form_content = QTextEdit()
+        self.form_content.setPlaceholderText("请输入内容")
+        self.form_content.setMinimumHeight(100)
+        form_layout.addWidget(self.form_content)
+        
+        # 备注
+        form_layout.addWidget(QLabel("备注:"))
+        self.form_notes = QTextEdit()
+        self.form_notes.setPlaceholderText("请输入备注（可选）")
+        self.form_notes.setMinimumHeight(60)
+        form_layout.addWidget(self.form_notes)
+        
+        # 按钮
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("保存")
+        cancel_btn = QPushButton("取消")
+        save_btn.setFixedWidth(100)
+        cancel_btn.setFixedWidth(100)
+        
+        save_btn.clicked.connect(self.save_material)
+        cancel_btn.clicked.connect(self.toggle_form)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        form_layout.addLayout(btn_layout)
+        
+        self.form_frame.setVisible(False)
+        main_layout.addWidget(self.form_frame)
+        
         # 数据表格
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["ID", "标题", "分类", "内容", "创建时间"])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
-        self.table.setColumnWidth(1, 200)
-        self.table.setColumnWidth(3, 300)
+        self.table.setColumnWidth(1, 150)
+        self.table.setColumnWidth(3, 250)
         
         main_layout.addWidget(self.table)
         
         # 加载数据
         self.load_materials()
+    
+    def toggle_form(self):
+        """切换表单显示/隐藏"""
+        self.form_visible = not self.form_visible
+        self.form_frame.setVisible(self.form_visible)
+        
+        if self.form_visible:
+            self.form_title.clear()
+            self.form_content.clear()
+            self.form_notes.clear()
+            self.form_title.setFocus()
+            self.add_btn.setText("收起")
+        else:
+            self.add_btn.setText("新增")
+    
+    def save_material(self):
+        """保存资料"""
+        title = self.form_title.text().strip()
+        if not title:
+            QMessageBox.warning(self, "错误", "标题不能为空")
+            return
+        
+        try:
+            self.db.add_material(
+                title=title,
+                content=self.form_content.toPlainText(),
+                category_id=self.form_category.currentData(),
+                notes=self.form_notes.toPlainText()
+            )
+            QMessageBox.information(self, "成功", "资料已添加!")
+            self.toggle_form()
+            self.load_materials()
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"保存失败: {str(e)}")
     
     def load_categories(self):
         """加载分类到下拉框"""
@@ -127,7 +214,7 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 2, category_item)
             
             # 内容
-            content = material['content'][:100] if material['content'] else ""
+            content = material['content'][:80] if material['content'] else ""
             content_item = QTableWidgetItem(content)
             content_item.setFlags(content_item.flags() & ~Qt.ItemIsEditable)
             self.table.setItem(row, 3, content_item)
@@ -162,70 +249,6 @@ class MainWindow(QMainWindow):
                 self.display_materials(materials)
             except:
                 pass
-    
-    def show_add_form(self):
-        """显示添加表单 - 使用消息框"""
-        msg = "输入格式: 标题|分类|内容|备注\n\n例如:\nPython教程|文档|Python是一种编程语言|重要"
-        
-        result = QMessageBox.information(
-            self, 
-            "新增资料",
-            msg,
-            QMessageBox.Ok | QMessageBox.Cancel
-        )
-        
-        if result == QMessageBox.Ok:
-            # 逐项输入
-            self.add_material_step_by_step()
-    
-    def add_material_step_by_step(self):
-        """一步步添加资料"""
-        from PyQt5.QtWidgets import QInputDialog
-        
-        # 输入标题
-        title, ok = QInputDialog.getText(self, "新增资料 - 第1步", "请输入标题:")
-        if not ok or not title.strip():
-            QMessageBox.information(self, "取消", "已取消添加")
-            return
-        
-        # 选择分类
-        categories = self.db.get_categories()
-        items = [cat['name'] for cat in categories]
-        
-        if not items:
-            QMessageBox.warning(self, "错误", "没有可用的分类")
-            return
-        
-        item, ok = QInputDialog.getItem(self, "新增资料 - 第2步", "请选择分类:", items)
-        if not ok:
-            QMessageBox.information(self, "取消", "已取消添加")
-            return
-        
-        category_id = next(cat['id'] for cat in categories if cat['name'] == item)
-        
-        # 输入内容
-        content, ok = QInputDialog.getMultiLineText(self, "新增资料 - 第3步", "请输入内容:")
-        if not ok:
-            QMessageBox.information(self, "取消", "已取消添加")
-            return
-        
-        # 输入备注
-        notes, ok = QInputDialog.getMultiLineText(self, "新增资料 - 第4步", "请输入备注(可选):")
-        if not ok:
-            notes = ""
-        
-        # 保存
-        try:
-            self.db.add_material(
-                title=title.strip(),
-                content=content.strip(),
-                category_id=category_id,
-                notes=notes.strip()
-            )
-            QMessageBox.information(self, "成功", "资料已添加!")
-            self.load_materials()
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"添加失败: {str(e)}")
     
     def delete_material(self):
         """删除选中的资料"""
