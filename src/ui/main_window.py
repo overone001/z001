@@ -6,9 +6,9 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QLineEdit, QComboBox, QLabel,
-    QDialog, QFormLayout, QTextEdit, QMessageBox, QSplitter
+    QDialog, QTextEdit, QMessageBox
 )
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt
 import config
 from src.database import Database
 
@@ -155,50 +155,39 @@ class MainWindow(QMainWindow):
         """添加资料对话框"""
         dialog = QDialog(self)
         dialog.setWindowTitle("新增资料")
-        dialog.setGeometry(200, 200, 600, 500)
-        dialog.setMinimumWidth(600)
-        dialog.setMinimumHeight(450)
+        dialog.resize(600, 500)
         
-        main_layout = QVBoxLayout()
+        layout = QVBoxLayout()
         
         # 标题
-        title_label = QLabel("标题：")
+        layout.addWidget(QLabel("标题："))
         title_input = QLineEdit()
         title_input.setPlaceholderText("请输入资料标题")
+        layout.addWidget(title_input)
         
         # 分类
-        category_label = QLabel("分类：")
+        layout.addWidget(QLabel("分类："))
         category_combo = QComboBox()
         categories = self.db.get_categories()
         for category in categories:
             category_combo.addItem(category['name'], category['id'])
+        layout.addWidget(category_combo)
         
         # 内容
-        content_label = QLabel("内容：")
+        layout.addWidget(QLabel("内容："))
         content_input = QTextEdit()
         content_input.setPlaceholderText("请输入资料内容")
         content_input.setMinimumHeight(150)
+        layout.addWidget(content_input)
         
         # 备注
-        notes_label = QLabel("备注：")
+        layout.addWidget(QLabel("备注："))
         notes_input = QTextEdit()
         notes_input.setPlaceholderText("可选的备注信息")
         notes_input.setMinimumHeight(80)
+        layout.addWidget(notes_input)
         
-        # 添加标签和输入框到布局
-        main_layout.addWidget(title_label)
-        main_layout.addWidget(title_input)
-        
-        main_layout.addWidget(category_label)
-        main_layout.addWidget(category_combo)
-        
-        main_layout.addWidget(content_label)
-        main_layout.addWidget(content_input)
-        
-        main_layout.addWidget(notes_label)
-        main_layout.addWidget(notes_input)
-        
-        # 按钮布局
+        # 按钮
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("保存")
         cancel_btn = QPushButton("取消")
@@ -208,10 +197,9 @@ class MainWindow(QMainWindow):
         btn_layout.addStretch()
         btn_layout.addWidget(save_btn)
         btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
         
-        main_layout.addLayout(btn_layout)
-        
-        dialog.setLayout(main_layout)
+        dialog.setLayout(layout)
         
         def save_material():
             title = title_input.text().strip()
