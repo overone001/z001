@@ -1,91 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-主窗口UI
+主窗口UI - 使用简化的输入对话框
 """
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QLineEdit, QComboBox, QLabel,
-    QDialog, QTextEdit, QMessageBox
+    QInputDialog, QTextEdit, QMessageBox
 )
 from PyQt5.QtCore import Qt
 import config
 from src.database import Database
-
-
-class AddMaterialDialog(QDialog):
-    """单独的添加资料对话框类"""
-    def __init__(self, parent, db):
-        super().__init__(parent)
-        self.db = db
-        self.result = None
-        self.init_ui()
-    
-    def init_ui(self):
-        self.setWindowTitle("新增资料")
-        self.setGeometry(300, 300, 600, 550)
-        
-        layout = QVBoxLayout()
-        
-        # 标题
-        layout.addWidget(QLabel("标题："))
-        self.title_input = QLineEdit()
-        self.title_input.setPlaceholderText("请输入资料标题")
-        layout.addWidget(self.title_input)
-        
-        # 分类
-        layout.addWidget(QLabel("分类："))
-        self.category_combo = QComboBox()
-        categories = self.db.get_categories()
-        for cat in categories:
-            self.category_combo.addItem(cat['name'], cat['id'])
-        layout.addWidget(self.category_combo)
-        
-        # 内容
-        layout.addWidget(QLabel("内容："))
-        self.content_input = QTextEdit()
-        self.content_input.setPlaceholderText("请输入资料内容")
-        self.content_input.setMinimumHeight(150)
-        layout.addWidget(self.content_input)
-        
-        # 备注
-        layout.addWidget(QLabel("备注："))
-        self.notes_input = QTextEdit()
-        self.notes_input.setPlaceholderText("可选的备注信息")
-        self.notes_input.setMinimumHeight(80)
-        layout.addWidget(self.notes_input)
-        
-        # 按钮
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        save_btn = QPushButton("保存")
-        cancel_btn = QPushButton("取消")
-        save_btn.setFixedWidth(100)
-        cancel_btn.setFixedWidth(100)
-        
-        save_btn.clicked.connect(self.save)
-        cancel_btn.clicked.connect(self.reject)
-        
-        btn_layout.addWidget(save_btn)
-        btn_layout.addWidget(cancel_btn)
-        layout.addLayout(btn_layout)
-        
-        self.setLayout(layout)
-    
-    def save(self):
-        title = self.title_input.text().strip()
-        if not title:
-            QMessageBox.warning(self, "警告", "标题不能为空")
-            return
-        
-        self.result = {
-            'title': title,
-            'category_id': self.category_combo.currentData(),
-            'content': self.content_input.toPlainText(),
-            'notes': self.notes_input.toPlainText()
-        }
-        self.accept()
 
 
 class MainWindow(QMainWindow):
@@ -125,7 +50,7 @@ class MainWindow(QMainWindow):
         # 新增按钮
         self.add_btn = QPushButton("新增")
         self.add_btn.setFixedWidth(80)
-        self.add_btn.clicked.connect(self.add_material_dialog)
+        self.add_btn.clicked.connect(self.add_material_simple)
         
         # 删除按钮
         self.delete_btn = QPushButton("删除")
@@ -226,13 +151,46 @@ class MainWindow(QMainWindow):
             materials = self.db.get_materials_by_category(category_id)
             self.display_materials(materials)
     
-    def add_material_dialog(self):
-        """打开添加资料对话框"""
-        dialog = AddMaterialDialog(self, self.db)
-        if dialog.exec_() == QDialog.Accepted and dialog.result:
-            self.db.add_material(**dialog.result)
-            QMessageBox.information(self, "成功", "资料添加成功")
+    def add_material_simple(self):
+        """简化的添加资料方法 - 逐步输入"""
+        # 输入标题
+        title, ok = QInputDialog.getText(self, "新增资料", "请输入标题：")
+        if not ok or not title.strip():
+            return
+        
+        # 选择分类
+        categories = self.db.get_categories()
+        cat_names = [cat['name'] for cat in categories]
+        category_name, ok = QInputDialog.getItem(
+            self, "新增资料", "请选择分类：", cat_names, 0, False
+        )
+        if not ok:
+            return
+        
+        category_id = next(cat['id'] for cat in categories if cat['name'] == category_name)
+        
+        # 输入内容
+        content, ok = QInputDialog.getMultiLineText(self, "新增资料", "请输入内容：")
+        if not ok:
+            return
+        
+        # 输入备注
+        notes, ok = QInputDialog.getMultiLineText(self, "新增资料", "请输入备注（可选）：")
+        if not ok:
+            notes = ""
+        
+        # 保存到数据库
+        try:
+            self.db.add_material(
+                title=title.strip(),
+                content=content,
+                category_id=category_id,
+                notes=notes
+            )
+            QMessageBox.information(self, "成功", "资料添加成功！")
             self.load_materials()
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"添加失败：{str(e)}")
     
     def delete_material(self):
         """删除选中的资料"""
@@ -242,13 +200,17 @@ class MainWindow(QMainWindow):
             return
         
         material_id = int(self.table.item(current_row, 0).text())
+        title = self.table.item(current_row, 1).text()
         
         reply = QMessageBox.question(
-            self, "确认", "确定要删除这条资料吗？",
+            self, "确认删除", f"确定要删除《{title}》吗？",
             QMessageBox.Yes | QMessageBox.No
         )
         
         if reply == QMessageBox.Yes:
-            self.db.delete_material(material_id)
-            self.load_materials()
-            QMessageBox.information(self, "成功", "资料已删除")
+            try:
+                self.db.delete_material(material_id)
+                self.load_materials()
+                QMessageBox.information(self, "成功", "资料已删除！")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"删除失败：{str(e)}")
